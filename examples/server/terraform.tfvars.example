@@ -1,0 +1,50 @@
+# --- Common --- #
+friendly_name_prefix = "<prod-server>"
+common_tags = {
+  Environment = "<prod>"
+  Project     = "<nomad>"
+}
+region = "<us-east-1>"
+
+# --- Prereqs --- #
+nomad_license_secret_arn                = "<arn:aws:secretsmanager:us-west-2:123456789012:secret:nomad-license>"
+nomad_gossip_encryption_key_secret_arn  = "<arn:aws:secretsmanager:us-west-2:123456789012:secret:gossip-encryption-key>"
+nomad_tls_cert_secret_arn               = "<arn:aws:secretsmanager:us-west-2:123456789012:secret:tls-cert>"
+nomad_tls_privkey_secret_arn            = "<arn:aws:secretsmanager:us-west-2:123456789012:secret:tls-privkey>"
+nomad_tls_ca_bundle_secret_arn          = "<arn:aws:secretsmanager:us-west-2:123456789012:secret:tls-ca-bundle>"
+additional_package_names                = ["<htop>"]
+
+# --- Nomad Configuration Settings --- # 
+nomad_acl_enabled        = <true>
+nomad_client             = <false>
+nomad_server             = <true>
+nomad_ui_enabled         = <true>
+nomad_upstream_servers   = ["127.0.0.1"]
+nomad_datacenter         = "<dc1>"
+autopilot_health_enabled = <true>
+nomad_version            = "<1.9.1+ent>"
+cni_version              = "<1.6.0>"
+nomad_architecture       = "<amd64>"
+
+# --- Networking --- #
+vpc_id                   = "<vpc-1234567890abcdef>"
+instance_subnets         = ["<subnet-abcdef1234567890>", "<subnet-123456abcdef7890>", "<subnet-123456abcdef7890>"]
+associate_public_ip      = false
+cidr_allow_ingress_nomad = ["<0.0.0.0/0>"]
+permit_all_egress        = true
+lb_is_internal           = false
+lb_subnet_ids            = ["<subnet-abcdef1234567890>", "<subnet-123456abcdef7890>", "<subnet-123456abcdef7890>"]
+
+# --- Compute --- #
+ec2_os_distro         = "<ubuntu>"
+instance_type         = "<m5.large>"
+nomad_nodes           = <6>
+ebs_is_encrypted      = <true>
+key_name              = "<my-ssh-key>"
+ec2_allow_ssm         = true
+
+# --- DNS --- #
+create_route53_nomad_dns_record      = <true>
+route53_nomad_hosted_zone_name       = "<aws.company.com>"
+route53_nomad_hosted_zone_is_private = <false>
+nomad_fqdn                           = "<nomad.aws.company.com>"
