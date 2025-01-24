@@ -231,4 +231,11 @@ Please note that there is no official Service Level Agreement (SLA) for support 
 | <a name="input_root_ebs_volume_type"></a> [root\_ebs\_volume\_type](#input\_root\_ebs\_volume\_type) | EBS volume type for root Nomad EC2 instances vol. | `string` | `"gp3"` | no |
 | <a name="input_route53_nomad_hosted_zone_is_private"></a> [route53\_nomad\_hosted\_zone\_is\_private](#input\_route53\_nomad\_hosted\_zone\_is\_private) | Boolean indicating if `route53_nomad_hosted_zone_name` is a private hosted zone. | `bool` | `false` | no |
 | <a name="input_route53_nomad_hosted_zone_name"></a> [route53\_nomad\_hosted\_zone\_name](#input\_route53\_nomad\_hosted\_zone\_name) | Route53 Hosted Zone name to create `nomad_hostname` Alias record in. Required if `create_nomad_alias_record` is `true`. | `string` | `null` | no |
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| <a name="output_nomad_cli_config"></a> [nomad\_cli\_config](#output\_nomad\_cli\_config) | Environment variables to configure the nomad CLI |
+| <a name="output_nomad_url"></a> [nomad\_url](#output\_nomad\_url) | URL to access Nomad application based on value of `nomad_fqdn` input. |
 <!-- END_TF_DOCS -->

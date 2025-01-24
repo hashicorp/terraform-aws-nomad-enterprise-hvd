@@ -23,11 +23,9 @@ No Runtimes will be enabled by default. To enable a runtime, modify the `install
 | <a name="input_friendly_name_prefix"></a> [friendly\_name\_prefix](#input\_friendly\_name\_prefix) | Friendly name prefix used for uniquely naming AWS resources. | `string` | n/a | yes |
 | <a name="input_instance_subnets"></a> [instance\_subnets](#input\_instance\_subnets) | List of AWS subnet IDs for instance(s) to be deployed into. | `list(string)` | n/a | yes |
 | <a name="input_key_name"></a> [key\_name](#input\_key\_name) | SSH key name, already registered in AWS, to use for instance access | `string` | n/a | yes |
-| <a name="input_lb_subnet_ids"></a> [lb\_subnet\_ids](#input\_lb\_subnet\_ids) | List of subnet IDs to use for the load balancer. If `lb_is_internal` is `false`, then these should be public subnets. Otherwise, these should be private subnets. | `list(string)` | n/a | yes |
 | <a name="input_nomad_client"></a> [nomad\_client](#input\_nomad\_client) | Boolean to enable the Nomad client agent. | `bool` | n/a | yes |
 | <a name="input_nomad_datacenter"></a> [nomad\_datacenter](#input\_nomad\_datacenter) | Specifies the data center of the local agent. A datacenter is an abstract grouping of clients within a region. Clients are not required to be in the same datacenter as the servers they are joined with, but do need to be in the same region. | `string` | n/a | yes |
 | <a name="input_nomad_server"></a> [nomad\_server](#input\_nomad\_server) | Boolean to enable the Nomad server agent. | `bool` | n/a | yes |
-| <a name="input_nomad_tls_ca_bundle_secret_arn"></a> [nomad\_tls\_ca\_bundle\_secret\_arn](#input\_nomad\_tls\_ca\_bundle\_secret\_arn) | ARN of AWS Secrets Manager secret for private/custom TLS Certificate Authority (CA) bundle in PEM format. Secret must be stored as a base64-encoded string. | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | AWS region where Nomad will be deployed. | `string` | n/a | yes |
 | <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the AWS VPC resources are deployed into. | `string` | n/a | yes |
 | <a name="input_additional_package_names"></a> [additional\_package\_names](#input\_additional\_package\_names) | List of additional repository package names to install | `set(string)` | `[]` | no |
@@ -51,6 +49,7 @@ No Runtimes will be enabled by default. To enable a runtime, modify the `install
 | <a name="input_ec2_os_distro"></a> [ec2\_os\_distro](#input\_ec2\_os\_distro) | Linux OS distribution type for Nomad EC2 instance. Choose from `al2023`, `ubuntu`, `rhel`, `centos`. | `string` | `"ubuntu"` | no |
 | <a name="input_instance_type"></a> [instance\_type](#input\_instance\_type) | EC2 instance type to launch. | `string` | `"m5.large"` | no |
 | <a name="input_lb_is_internal"></a> [lb\_is\_internal](#input\_lb\_is\_internal) | Boolean to create an internal (private) load balancer. The `lb_subnet_ids` must be private subnets when this is `true`. | `bool` | `true` | no |
+| <a name="input_lb_subnet_ids"></a> [lb\_subnet\_ids](#input\_lb\_subnet\_ids) | List of subnet IDs to use for the load balancer. If `lb_is_internal` is `false`, then these should be public subnets. Otherwise, these should be private subnets. | `list(string)` | `null` | no |
 | <a name="input_nomad_acl_enabled"></a> [nomad\_acl\_enabled](#input\_nomad\_acl\_enabled) | Boolean to enable ACLs for Nomad. | `bool` | `true` | no |
 | <a name="input_nomad_architecture"></a> [nomad\_architecture](#input\_nomad\_architecture) | Architecture of the Nomad binary to install. | `string` | `"amd64"` | no |
 | <a name="input_nomad_fqdn"></a> [nomad\_fqdn](#input\_nomad\_fqdn) | Fully qualified domain name of the Nomad Cluster. This name should resolve to the load balancer IP address and will be what admins will use to access Nomad. | `string` | `null` | no |
@@ -58,6 +57,7 @@ No Runtimes will be enabled by default. To enable a runtime, modify the `install
 | <a name="input_nomad_license_secret_arn"></a> [nomad\_license\_secret\_arn](#input\_nomad\_license\_secret\_arn) | ARN of AWS Secrets Manager secret for Nomad license file. | `string` | `null` | no |
 | <a name="input_nomad_nodes"></a> [nomad\_nodes](#input\_nomad\_nodes) | Number of Nomad nodes to deploy. | `number` | `6` | no |
 | <a name="input_nomad_region"></a> [nomad\_region](#input\_nomad\_region) | Specifies the region of the local agent. A region is an abstract grouping of datacenters. Clients are not required to be in the same region as the servers they are joined with, but do need to be in the same datacenter. If not specified, the region is set AWS region. | `string` | `null` | no |
+| <a name="input_nomad_tls_ca_bundle_secret_arn"></a> [nomad\_tls\_ca\_bundle\_secret\_arn](#input\_nomad\_tls\_ca\_bundle\_secret\_arn) | ARN of AWS Secrets Manager secret for private/custom TLS Certificate Authority (CA) bundle in PEM format. Secret must be stored as a base64-encoded string. | `string` | `null` | no |
 | <a name="input_nomad_tls_cert_secret_arn"></a> [nomad\_tls\_cert\_secret\_arn](#input\_nomad\_tls\_cert\_secret\_arn) | ARN of AWS Secrets Manager secret for Nomad TLS certificate in PEM format. Secret must be stored as a base64-encoded string. | `string` | `null` | no |
 | <a name="input_nomad_tls_enabled"></a> [nomad\_tls\_enabled](#input\_nomad\_tls\_enabled) | Boolean to enable TLS for Nomad. | `bool` | `true` | no |
 | <a name="input_nomad_tls_privkey_secret_arn"></a> [nomad\_tls\_privkey\_secret\_arn](#input\_nomad\_tls\_privkey\_secret\_arn) | ARN of AWS Secrets Manager secret for Nomad TLS private key in PEM format. Secret must be stored as a base64-encoded string. | `string` | `null` | no |
@@ -73,4 +73,10 @@ No Runtimes will be enabled by default. To enable a runtime, modify the `install
 | <a name="input_root_ebs_volume_type"></a> [root\_ebs\_volume\_type](#input\_root\_ebs\_volume\_type) | EBS volume type for root Nomad EC2 instances vol. | `string` | `"gp3"` | no |
 | <a name="input_route53_nomad_hosted_zone_is_private"></a> [route53\_nomad\_hosted\_zone\_is\_private](#input\_route53\_nomad\_hosted\_zone\_is\_private) | Boolean indicating if `route53_nomad_hosted_zone_name` is a private hosted zone. | `bool` | `false` | no |
 | <a name="input_route53_nomad_hosted_zone_name"></a> [route53\_nomad\_hosted\_zone\_name](#input\_route53\_nomad\_hosted\_zone\_name) | Route53 Hosted Zone name to create `nomad_hostname` Alias record in. Required if `create_nomad_alias_record` is `true`. | `string` | `null` | no |
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| <a name="output_nomad_url"></a> [nomad\_url](#output\_nomad\_url) | ------------------------------------------------------------------------------ Nomad URLs ------------------------------------------------------------------------------ |
 <!-- END_TF_DOCS -->
