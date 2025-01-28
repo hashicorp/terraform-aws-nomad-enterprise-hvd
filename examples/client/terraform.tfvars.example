@@ -1,0 +1,43 @@
+# --- Common --- #
+friendly_name_prefix = "<prod-client>"
+common_tags = {
+  Environment = "<prod>"
+  Project     = "<nomad>"
+}
+region = "<us-east-1>"
+
+# --- Prereqs --- #
+additional_package_names = ["<htop>"]
+
+# --- Nomad Configuration Settings --- # 
+nomad_acl_enabled        = <true>
+nomad_client             = <false>
+nomad_server             = <false>
+nomad_ui_enabled         = <false>
+nomad_upstream_tag_key   = "<Environment-Name>" #The AWS Tag Key that the Nomad Server Nodes are tagged with
+nomad_upstream_tag_value = "<prod-server-nomad>" #The AWS Tag Value that the Nomad Server Nodes are tagged with
+#nomad_upstream_servers   = ["<10.0.0.25>"] #If not using AWS Tags to specify the Nomad Servers to join
+nomad_datacenter         = "<dc1>"
+autopilot_health_enabled = <true>
+nomad_version            = "<1.9.1+ent>"
+cni_version              = "<1.6.0>"
+nomad_architecture       = "<amd64>"
+
+# --- Networking --- #
+vpc_id                   = "<vpc-1234567890abcdef>"
+instance_subnets         = ["<subnet-abcdef1234567890>", "<subnet-123456abcdef7890>", "<subnet-123456abcdef7890>"]
+associate_public_ip      = false
+cidr_allow_ingress_nomad = ["<0.0.0.0/0>"]
+permit_all_egress        = true
+create_nlb               = false
+
+# --- Compute --- #
+ec2_os_distro         = "<ubuntu>"
+instance_type         = "<m5.large>"
+nomad_nodes           = <6>
+ebs_is_encrypted      = <true>
+key_name              = "<my-ssh-key>"
+ec2_allow_ssm         = true
+
+# --- DNS --- #
+create_route53_nomad_dns_record = false
