@@ -1,4 +1,4 @@
-.# Nomad Certificate Rotation
+# Nomad Certificate Rotation
 
 One of the prerequisites for automating Nomad deployment is to store base64-encoded strings of your Nomad TLS certificate and private key files (in PEM format) as plaintext secrets in AWS Secrets Manager. The Nomad client and server `cloud-init` scripts (or equivalent user-data scripts) are designed to retrieve the latest values of these secrets when they run. Therefore, to update Nomad's TLS certificates, update the corresponding secrets in AWS Secrets Manager, then restart or replace the Nomad servers or clients to pick up the new certificates. Follow the steps below for detailed instructions.
 
@@ -31,7 +31,7 @@ Follow these steps to rotate the certificates for your Nomad cluster.
     cat new_nomad_privkey.pem | base64
     ```
 
-   On Windows (PowerShell):
+    On Windows (PowerShell):
 
     ```powershell
     function ConvertTo-Base64 {
