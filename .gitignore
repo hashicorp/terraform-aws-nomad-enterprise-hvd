@@ -48,4 +48,4 @@ crash.log
 local_*.yaml
 
 # Ignore module-generated Helm overrides file
-module_generated_helm_overrides.yaml# Local .terraform directories
+module_generated_helm_overrides.yaml
