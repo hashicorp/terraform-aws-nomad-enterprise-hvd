@@ -46,7 +46,7 @@ module "nomad" {
   lb_is_internal                = var.lb_is_internal
   lb_subnet_ids                 = var.lb_subnet_ids
   cidr_allow_ingress_nomad      = var.cidr_allow_ingress_nomad
-    create_nlb                    = var.create_nlb
+  create_nlb                    = var.create_nlb
 
   # --- Nomad config settings --- #
   nomad_version            = var.nomad_version

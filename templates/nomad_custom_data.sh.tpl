@@ -55,8 +55,8 @@ function detect_os_distro {
     echo "$OS_DISTRO_DETECTED"
 }
 
-# Imported from Vault, needs reviewed
 function prepare_disk() {
+  log "INFO" "Preparing Nomad data disk"
   local device_name="$1"
   log "DEBUG" "prepare_disk - device_name; $${device_name}"
 
@@ -66,7 +66,7 @@ function prepare_disk() {
   local device_label="$3"
   log "DEBUG" "prepare_disk - device_label; $${device_label}"
 
-  local ebs_volume_id=$(aws ec2 describe-volumes --filters Name=attachment.device,Values=$${device_name} Name=attachment.instance-id,Values=$INSTANCE_ID --query 'Volumes[*].{ID:VolumeId}' --region $REGION --output text | tr -d '-' )
+  local ebs_volume_id=$(aws ec2 describe-volumes --filters Name=attachment.device,Values=$${device_name} Name=attachment.instance-id,Values=$INSTANCE_ID --query 'Volumes[*].{ID:VolumeId}' --region ${aws_region} --output text | tr -d '-' )
   log "DEBUG" "prepare_disk - ebs_volume_id; $${ebs_volume_id}"
 
   local device_id=$(readlink -f /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$${ebs_volume_id})
@@ -442,34 +442,6 @@ function exit_script {
 
   exit "$1"
 }
-
-function prepare_disk() {
-  log "INFO" "Preparing Nomad data disk"
-  local device_name="$1"
-  log "DEBUG" "prepare_disk - device_name; $${device_name}"
-
-  local device_mountpoint="$2"
-  log "DEBUG" "prepare_disk - device_mountpoint; $${device_mountpoint}"
-
-  local device_label="$3"
-  log "DEBUG" "prepare_disk - device_label; $${device_label}"
-
-  local ebs_volume_id=$(aws ec2 describe-volumes --filters Name=attachment.device,Values=$${device_name} Name=attachment.instance-id,Values=$INSTANCE_ID --query 'Volumes[*].{ID:VolumeId}' --region ${aws_region} --output text | tr -d '-' )
-  log "DEBUG" "prepare_disk - ebs_volume_id; $${ebs_volume_id}"
-
-  local device_id=$(readlink -f /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$${ebs_volume_id})
-  log "DEBUG" "prepare_disk - device_id; $${device_id}"
-
-  mkdir $device_mountpoint
-
-  # exclude quotes on device_label or formatting will fail
-  mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0 -L $device_label $${device_id}
-
-  echo "LABEL=$device_label $device_mountpoint ext4 defaults 0 2" >> /etc/fstab
-
-  mount -a
-}
-
 
 function main {
   log "INFO" "Beginning Nomad user_data script."
