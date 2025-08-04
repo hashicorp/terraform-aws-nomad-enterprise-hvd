@@ -500,8 +500,8 @@ function main {
   prepare_disk "/dev/sdf" "/var/lib/nomad" "nomad-data"
   user_group_create
   directory_create
-	checksum_verify
-	log "INFO" "Installing Nomad version $NOMAD_VERSION for $OS_ARCH
+  checksum_verify
+  log "INFO" "Installing Nomad version $NOMAD_VERSION for $OS_ARCH"
   install_nomad_binary
   %{ if nomad_client ~}
   install_runtime
