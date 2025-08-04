@@ -43,8 +43,9 @@ locals {
     template_name            = local.template_name
     autopilot_health_enabled = var.autopilot_health_enabled
   }
+  custom_install_tpl          = var.custom_install_template != null ? "${path.cwd}/templates/${var.custom_install_template}" : "${path.module}/templates/nomd_custom_data.sh.tpl"
+  user_data_template_rendered = templatefile(local.custom_install_tpl, local.custom_data_args)
 
-  user_data_template_rendered = templatefile("${path.module}/templates/nomad_custom_data.sh.tpl", local.custom_data_args)
 }
 
 #------------------------------------------------------------------------------
@@ -245,10 +246,10 @@ resource "aws_placement_group" "nomad" {
 # Autoscaling Group
 #------------------------------------------------------------------------------
 resource "aws_autoscaling_group" "nomad" {
-  name                      = local.template_name
-  min_size                  = var.nomad_nodes
-  max_size                  = var.nomad_nodes * 2
-  desired_capacity          = var.nomad_nodes
+  name             = local.template_name
+  min_size         = var.nomad_nodes
+  max_size         = var.nomad_nodes * 2
+  desired_capacity = var.nomad_nodes
   #wait_for_elb_capacity     = var.nomad_nodes # Not evaluated for instances without ELB
   #wait_for_capacity_timeout = "1200s"
   health_check_grace_period = var.asg_health_check_grace_period

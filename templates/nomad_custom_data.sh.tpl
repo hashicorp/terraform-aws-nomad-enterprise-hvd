@@ -15,7 +15,11 @@ NOMAD_DIR_BIN="${nomad_dir_bin}"
 CNI_DIR_BIN="${cni_dir_bin}"
 NOMAD_USER="nomad"
 NOMAD_GROUP="nomad"
-NOMAD_INSTALL_URL="${nomad_install_url}"
+# NOMAD_INSTALL_URL="${nomad_install_url}"
+PRODUCT="nomad"
+OS_ARCH="linux_$( dpkg --print-architecture )"
+NOMAD_VERSION="${nomad_version}"
+VERSION=$NOMAD_VERSION
 REQUIRED_PACKAGES="curl jq unzip"
 AWS_REGION="${aws_region}"
 ADDITIONAL_PACKAGES="${additional_package_names}"
@@ -139,8 +143,8 @@ function scrape_vm_info {
   log "INFO" "Detected EC2 instance ID is '$INSTANCE_ID' and availability zone is '$AVAILABILITY_ZONE'."
 }
 
-# For Nomad there are a number of supported runtimes, including Exec, Docker, Podman, raw_exec, and more. This function should be modified 
-# to install the runtime that is appropriate for your environment. By default the no runtimes will be enabled. 
+# For Nomad there are a number of supported runtimes, including Exec, Docker, Podman, raw_exec, and more. This function should be modified
+# to install the runtime that is appropriate for your environment. By default the no runtimes will be enabled.
 function install_runtime {
     log "INFO" "Installing a runtime..."
     log "INFO" "Done installing runtime."
@@ -189,7 +193,7 @@ function retrieve_gossip_encryption_key_from_awssm {
     local SECRET_REGION=$AWS_REGION
     if [[ -z "$SECRET_ARN" ]]; then
         log "ERROR" "Secret ARN cannot be empty. Exiting."
-        exit_script 5   
+        exit_script 5
     elif [[ "$SECRET_ARN" == arn:aws:secretsmanager:* ]]; then
         log "INFO" "Retrieving value of secret '$SECRET_ARN' from AWS Secrets Manager."
         GOSSIP_ENCRYPTION_KEY=$(aws secretsmanager get-secret-value --region $SECRET_REGION --secret-id $SECRET_ARN --query SecretString --output text)
@@ -230,20 +234,65 @@ function directory_create {
     log "INFO" "Done creating necessary directories."
 }
 
+function checksum_verify {
+  # https://www.hashicorp.com/en/trust/security
+  # checksum_verify downloads the $$PRODUCT binary and verifies its integrity
+  log "INFO" "Verifying the integrity of the $${PRODUCT} binary."
+  export GNUPGHOME=./.gnupg
+  sudo curl -s https://www.hashicorp.com/.well-known/pgp-key.txt | gpg --import
+
+	log "INFO" "Downloading $${PRODUCT} Enterprise binary"
+  sudo curl -Os https://releases.hashicorp.com/"$${PRODUCT}"/"$${VERSION}"/"$${PRODUCT}"_"$${VERSION}"_"$${OS_ARCH}".zip
+  sudo curl -Os https://releases.hashicorp.com/"$${PRODUCT}"/"$${VERSION}"/"$${PRODUCT}"_"$${VERSION}"_SHA256SUMS
+  sudo curl -Os https://releases.hashicorp.com/"$${PRODUCT}"/"$${VERSION}"/"$${PRODUCT}"_"$${VERSION}"_SHA256SUMS.sig
+  # Verify the signature file is untampered.
+  gpg --verify "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS.sig "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS
+
+  # Verify the SHASUM matches the archive.
+  shasum -a 256 -c "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS --ignore-missing
+	if [[ $? -ne 0 ]]; then
+		log "ERROR" "Checksum verification failed for the $${PRODUCT} binary."
+		exit_script 1
+	fi
+
+	log "INFO" "Checksum verification passed for the $${PRODUCT} binary."
+
+	# Remove the downloaded files to clean up
+	sudo rm -f "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS.sig
+
+}
+
 # install_nomad_binary downloads the Nomad binary and puts it in dedicated bin directory
 function install_nomad_binary {
-    log "INFO" "Installing Nomad binary to: $NOMAD_DIR_BIN..."
 
-    # Download the Nomad binary to the dedicated bin directory
-    sudo curl -so $NOMAD_DIR_BIN/nomad.zip $NOMAD_INSTALL_URL
 
-    # Unzip the Nomad binary
-    sudo unzip $NOMAD_DIR_BIN/nomad.zip nomad -d $NOMAD_DIR_BIN
-    sudo unzip $NOMAD_DIR_BIN/nomad.zip -x nomad -d $NOMAD_DIR_LICENSE
+# install_nomad_binary downloads the Nomad binary and puts it in dedicated bin directory
+function install_nomad_binary {
+	  #  log "INFO" "Installing Nomad binary to: $NOMAD_DIR_BIN..."
 
-    sudo rm $NOMAD_DIR_BIN/nomad.zip
+    # # Download the Nomad binary to the dedicated bin directory
+    # sudo curl -so $NOMAD_DIR_BIN/nomad.zip $NOMAD_INSTALL_URL
 
-    log "INFO" "Done installing Nomad binary."
+    # # Unzip the Nomad binary
+    # sudo unzip $NOMAD_DIR_BIN/nomad.zip nomad -d $NOMAD_DIR_BIN
+    # sudo unzip $NOMAD_DIR_BIN/nomad.zip -x nomad -d $NOMAD_DIR_LICENSE
+
+    # sudo rm $NOMAD_DIR_BIN/nomad.zip
+
+    # log "INFO" "Done installing Nomad binary."
+  log "INFO" "Deploying Nomad Enterprise binary to $NOMAD_DIR_BIN unzip and set permissions"
+	sudo unzip "$${PRODUCT}"_"$${NOMAD_VERSION}"_"$${OS_ARCH}".zip  nomad -d $NOMAD_DIR_BIN
+	sudo unzip "$${PRODUCT}"_"$${NOMAD_VERSION}"_"$${OS_ARCH}".zip -x nomad -d $NOMAD_DIR_LICENSE
+	sudo rm -f "$${PRODUCT}"_"$${NOMAD_VERSION}"_"$${OS_ARCH}".zip
+
+	# Set the permissions for the nomad binary
+	sudo chmod 0755 $NOMAD_DIR_BIN/nomad
+	sudo chown $NOMAD_USER:$NOMAD_GROUP $NOMAD_DIR_BIN/nomad
+
+	# Create a symlink to the Nomad binary in /usr/local/bin
+	sudo ln -sf $NOMAD_DIR_BIN/nomad /usr/local/bin/nomad
+
+	log "INFO" "Nomad binary installed successfully at $NOMAD_DIR_BIN/nomad"
 }
 
 function install_cni_plugins {
@@ -323,7 +372,7 @@ autopilot {
 tls {
   http      = true
   rpc       = true
-  cert_file = "$NOMAD_DIR_TLS/cert.pem" 
+  cert_file = "$NOMAD_DIR_TLS/cert.pem"
   key_file  = "$NOMAD_DIR_TLS/key.pem"
 %{ if nomad_tls_ca_bundle_secret_arn != "NONE" ~}
   ca_file   = "$NOMAD_DIR_TLS/bundle.pem"
@@ -454,6 +503,8 @@ function main {
   prepare_disk "/dev/sdf" "/var/lib/nomad" "nomad-data"
   user_group_create
   directory_create
+	checksum_verify
+	log "INFO" "Installing Nomad version $NOMAD_VERSION for $OS_ARCH
   install_nomad_binary
   %{ if nomad_client ~}
   install_runtime
@@ -474,7 +525,7 @@ function main {
   generate_nomad_config
   template_nomad_systemd
   start_enable_nomad
-  
+
   exit_script 0
 }
 
