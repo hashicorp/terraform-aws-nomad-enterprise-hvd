@@ -262,9 +262,6 @@ function checksum_verify {
 
 }
 
-# install_nomad_binary downloads the Nomad binary and puts it in dedicated bin directory
-function install_nomad_binary {
-
 
 # install_nomad_binary downloads the Nomad binary and puts it in dedicated bin directory
 function install_nomad_binary {
