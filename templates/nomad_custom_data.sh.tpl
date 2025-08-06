@@ -17,7 +17,6 @@ NOMAD_USER="nomad"
 NOMAD_GROUP="nomad"
 # NOMAD_INSTALL_URL="${nomad_install_url}"
 PRODUCT="nomad"
-OS_ARCH="linux_$( dpkg --print-architecture )"
 NOMAD_VERSION="${nomad_version}"
 VERSION=$NOMAD_VERSION
 REQUIRED_PACKAGES="curl jq unzip"
@@ -31,6 +30,29 @@ function log {
     local log_entry="$timestamp [$level] - $message"
 
     echo "$log_entry" | tee -a "$LOGFILE"
+}
+
+function detect_architecture {
+  local ARCHITECTURE=""
+  local OS_ARCH_DETECTED=$(uname -m)
+
+  case "$OS_ARCH_DETECTED" in
+    "x86_64"*)
+      ARCHITECTURE="linux_amd64"
+      ;;
+    "aarch64"*)
+      ARCHITECTURE="linux_arm64"
+      ;;
+		"arm"*)
+      ARCHITECTURE="linux_arm"
+			;;
+    *)
+      log "ERROR" "Unsupported architecture detected: '$OS_ARCH_DETECTED'. "
+		  exit_script 1
+  esac
+
+  echo "$ARCHITECTURE"
+
 }
 
 function detect_os_distro {
@@ -244,21 +266,34 @@ function directory_create {
 }
 
 function checksum_verify {
+  local os_arch="$1"
+
   # https://www.hashicorp.com/en/trust/security
   # checksum_verify downloads the $$PRODUCT binary and verifies its integrity
   log "INFO" "Verifying the integrity of the $${PRODUCT} binary."
   export GNUPGHOME=./.gnupg
+  log "INFO" "Importing HashiCorp GPG key."
   sudo curl -s https://www.hashicorp.com/.well-known/pgp-key.txt | gpg --import
 
-	log "INFO" "Downloading $${PRODUCT} Enterprise binary"
+	log "INFO" "Downloading $${PRODUCT} binary"
   sudo curl -Os https://releases.hashicorp.com/"$${PRODUCT}"/"$${VERSION}"/"$${PRODUCT}"_"$${VERSION}"_"$${OS_ARCH}".zip
+	log "INFO" "Downloading Vault Enterprise binary checksum files"
   sudo curl -Os https://releases.hashicorp.com/"$${PRODUCT}"/"$${VERSION}"/"$${PRODUCT}"_"$${VERSION}"_SHA256SUMS
+	log "INFO" "Downloading Vault Enterprise binary checksum signature file"
   sudo curl -Os https://releases.hashicorp.com/"$${PRODUCT}"/"$${VERSION}"/"$${PRODUCT}"_"$${VERSION}"_SHA256SUMS.sig
-  # Verify the signature file is untampered.
+  log "INFO" "Verifying the signature file is untampered."
   gpg --verify "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS.sig "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS
-
-  # Verify the SHASUM matches the archive.
-  shasum -a 256 -c "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS --ignore-missing
+	if [[ $? -ne 0 ]]; then
+		log "ERROR" "Gpg verification failed for SHA256SUMS."
+		exit_script 1
+	fi
+  if [ -x "$(command -v sha256sum)" ]; then
+		log "INFO" "Using sha256sum to verify the checksum of the $${PRODUCT} binary."
+		sha256sum -c "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS --ignore-missing
+	else
+		log "INFO" "Using shasum to verify the checksum of the $${PRODUCT} binary."
+		shasum -a 256 -c "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS --ignore-missing
+	fi
 	if [[ $? -ne 0 ]]; then
 		log "ERROR" "Checksum verification failed for the $${PRODUCT} binary."
 		exit_script 1
@@ -266,26 +301,15 @@ function checksum_verify {
 
 	log "INFO" "Checksum verification passed for the $${PRODUCT} binary."
 
-	# Remove the downloaded files to clean up
+	log "INFO" "Removing the downloaded files to clean up"
 	sudo rm -f "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS.sig
 
 }
 
-
 # install_nomad_binary downloads the Nomad binary and puts it in dedicated bin directory
 function install_nomad_binary {
-	  #  log "INFO" "Installing Nomad binary to: $NOMAD_DIR_BIN..."
+	local os_arch="$1"
 
-    # # Download the Nomad binary to the dedicated bin directory
-    # sudo curl -so $NOMAD_DIR_BIN/nomad.zip $NOMAD_INSTALL_URL
-
-    # # Unzip the Nomad binary
-    # sudo unzip $NOMAD_DIR_BIN/nomad.zip nomad -d $NOMAD_DIR_BIN
-    # sudo unzip $NOMAD_DIR_BIN/nomad.zip -x nomad -d $NOMAD_DIR_LICENSE
-
-    # sudo rm $NOMAD_DIR_BIN/nomad.zip
-
-    # log "INFO" "Done installing Nomad binary."
   log "INFO" "Deploying Nomad Enterprise binary to $NOMAD_DIR_BIN unzip and set permissions"
 	sudo unzip "$${PRODUCT}"_"$${NOMAD_VERSION}"_"$${OS_ARCH}".zip  nomad -d $NOMAD_DIR_BIN
 	sudo unzip "$${PRODUCT}"_"$${NOMAD_VERSION}"_"$${OS_ARCH}".zip -x nomad -d $NOMAD_DIR_LICENSE
@@ -509,9 +533,9 @@ function main {
   prepare_disk "/dev/sdf" "/var/lib/nomad" "nomad-data"
   user_group_create
   directory_create
-  checksum_verify
+  checksum_verify $OS_ARCH
   log "INFO" "Installing Nomad version $NOMAD_VERSION for $OS_ARCH"
-  install_nomad_binary
+  install_nomad_binary  $OS_ARCH
   %{ if nomad_client ~}
   install_runtime
   install_cni_plugins
