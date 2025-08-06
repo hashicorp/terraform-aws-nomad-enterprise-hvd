@@ -525,6 +525,8 @@ function exit_script {
 function main {
   log "INFO" "Beginning Nomad user_data script."
 
+  OS_ARCH=$(detect_architecture)
+	log "INFO" "Detected architecture is '$OS_ARCH'."
   OS_DISTRO=$(detect_os_distro)
   log "INFO" "Detected Linux OS distro is '$OS_DISTRO'."
   scrape_vm_info
