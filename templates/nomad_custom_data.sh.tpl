@@ -32,6 +32,16 @@ function log {
     echo "$log_entry" | tee -a "$LOGFILE"
 }
 
+function exit_script {
+  if [[ "$1" == 0 ]]; then
+    log "INFO" "nomad_custom_data script finished successfully!"
+  else
+    log "ERROR" "nomad_custom_data script finished with error code $1."
+  fi
+
+  exit "$1"
+}
+
 function detect_architecture {
   local ARCHITECTURE=""
   local OS_ARCH_DETECTED=$(uname -m)
@@ -515,15 +525,7 @@ function start_enable_nomad {
   log "[INFO]" "Done starting and enabling the nomad service."
 }
 
-function exit_script {
-  if [[ "$1" == 0 ]]; then
-    log "INFO" "nomad_custom_data script finished successfully!"
-  else
-    log "ERROR" "nomad_custom_data script finished with error code $1."
-  fi
 
-  exit "$1"
-}
 
 function main {
   log "INFO" "Beginning Nomad user_data script."
