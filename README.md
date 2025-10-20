@@ -110,6 +110,13 @@ Additional documentation for managing and customizing your Nomad deployment is a
 - Nomad Configuration Settings
 - Nomad Deployment Customizations
 
+## Troubleshooting
+
+During deployment the output of the `user_data` script can be traced in `/var/log/cloud-init.log`, `/var/log/cloud-init-output.log` and `/var/log/vault-cloud-init.log` due to `set -xeuo pipefail` in the default  `install-vault.sh.tpl`
+For help debugging cloud init and user data scripts
+- <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html#userdata-linux>
+- <https://cloudinit.readthedocs.io/en/latest/howto/debugging.html#cloud-init-ran-but-didn-t-do-what-i-want-it-to>
+
 ## Module support
 
 This open source software is maintained by the HashiCorp Technical Field Organization, independently of our enterprise products. While our Support Engineering team provides dedicated support for our enterprise offerings, this open source software is not included.
@@ -125,13 +132,13 @@ Please note that there is no official Service Level Agreement (SLA) for support 
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.9 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.51.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.51.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 5.0 |
 
 ## Resources
 
@@ -196,6 +203,7 @@ Please note that there is no official Service Level Agreement (SLA) for support 
 | <a name="input_common_tags"></a> [common\_tags](#input\_common\_tags) | Map of common tags for taggable AWS resources. | `map(string)` | `{}` | no |
 | <a name="input_create_nlb"></a> [create\_nlb](#input\_create\_nlb) | Boolean to create a Network Load Balancer for Nomad. | `bool` | `true` | no |
 | <a name="input_create_route53_nomad_dns_record"></a> [create\_route53\_nomad\_dns\_record](#input\_create\_route53\_nomad\_dns\_record) | Boolean to create Route53 Alias Record for `nomad_hostname` resolving to Load Balancer DNS name. If `true`, `route53_hosted_zone_nomad` is also required. | `bool` | `false` | no |
+| <a name="input_custom_install_template"></a> [custom\_install\_template](#input\_custom\_install\_template) | Filename of a custom Install script template to use in place of of the built-in user\_data script. The file must exist within a directory named './templates' in your current working directory. | `string` | `null` | no |
 | <a name="input_data_ebs_iops"></a> [data\_ebs\_iops](#input\_data\_ebs\_iops) | Amount of IOPS to configure when EBS volume type is `gp3`. Must be greater than or equal to `3000` and less than or equal to `16000`. | `number` | `3000` | no |
 | <a name="input_data_ebs_throughput"></a> [data\_ebs\_throughput](#input\_data\_ebs\_throughput) | Throughput (MB/s) to configure when data EBS volume type is `gp3`. Must be greater than or equal to `125` and less than or equal to `1000`. | `number` | `250` | no |
 | <a name="input_data_ebs_volume_size"></a> [data\_ebs\_volume\_size](#input\_data\_ebs\_volume\_size) | Size (GB) of the data EBS volume for Nomad EC2 instances. Must be greater than or equal to `50` and less than or equal to `16000`. | `number` | `50` | no |

@@ -15,7 +15,10 @@ NOMAD_DIR_BIN="${nomad_dir_bin}"
 CNI_DIR_BIN="${cni_dir_bin}"
 NOMAD_USER="nomad"
 NOMAD_GROUP="nomad"
-NOMAD_INSTALL_URL="${nomad_install_url}"
+# NOMAD_INSTALL_URL="${nomad_install_url}"
+PRODUCT="nomad"
+NOMAD_VERSION="${nomad_version}"
+VERSION=$NOMAD_VERSION
 REQUIRED_PACKAGES="curl jq unzip"
 AWS_REGION="${aws_region}"
 ADDITIONAL_PACKAGES="${additional_package_names}"
@@ -27,6 +30,40 @@ function log {
     local log_entry="$timestamp [$level] - $message"
 
     echo "$log_entry" | tee -a "$LOGFILE"
+}
+
+function exit_script {
+  if [[ "$1" == 0 ]]; then
+    log "INFO" "nomad_custom_data script finished successfully!"
+  else
+    log "ERROR" "nomad_custom_data script finished with error code $1."
+  fi
+
+  exit "$1"
+}
+
+function detect_architecture {
+  local ARCHITECTURE=""
+  local OS_ARCH_DETECTED=$(uname -m)
+
+  case "$OS_ARCH_DETECTED" in
+    "x86_64"*)
+      ARCHITECTURE="linux_amd64"
+      ;;
+    "aarch64"*)
+      ARCHITECTURE="linux_arm64"
+      ;;
+		"arm"*)
+      ARCHITECTURE="linux_arm"
+			;;
+    *)
+      log "ERROR" "Unsupported architecture detected: '$OS_ARCH_DETECTED'. "
+		  exit_script 1
+			;;
+  esac
+
+  echo "$ARCHITECTURE"
+
 }
 
 function detect_os_distro {
@@ -66,8 +103,17 @@ function prepare_disk() {
   local device_label="$3"
   log "DEBUG" "prepare_disk - device_label; $${device_label}"
 
+  sleep 20
   local ebs_volume_id=$(aws ec2 describe-volumes --filters Name=attachment.device,Values=$${device_name} Name=attachment.instance-id,Values=$INSTANCE_ID --query 'Volumes[*].{ID:VolumeId}' --region ${aws_region} --output text | tr -d '-' )
+
+  if [[ -z "$${ebs_volume_id}" ]]; then
+    log "ERROR" "No EBS volume found attached to device $${device_name}"
+    exit_script 1
+  fi
+
+
   log "DEBUG" "prepare_disk - ebs_volume_id; $${ebs_volume_id}"
+
 
   local device_id=$(readlink -f /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$${ebs_volume_id})
   log "DEBUG" "prepare_disk - device_id; $${device_id}"
@@ -94,6 +140,8 @@ function install_prereqs {
         yum install -y $REQUIRED_PACKAGES $ADDITIONAL_PACKAGES
     elif [[ "$OS_DISTRO" == "amzn2023" ]]; then
         yum install -y $REQUIRED_PACKAGES $ADDITIONAL_PACKAGES
+        log "INFO" "Enabling gnupg2-full for Amazon Linux 2023."
+        dnf swap gnupg2-minimal gnupg2-full -y
     else
         log "ERROR" "Unsupported OS distro '$OS_DISTRO'. Exiting."
         exit_script 1
@@ -139,8 +187,8 @@ function scrape_vm_info {
   log "INFO" "Detected EC2 instance ID is '$INSTANCE_ID' and availability zone is '$AVAILABILITY_ZONE'."
 }
 
-# For Nomad there are a number of supported runtimes, including Exec, Docker, Podman, raw_exec, and more. This function should be modified 
-# to install the runtime that is appropriate for your environment. By default the no runtimes will be enabled. 
+# For Nomad there are a number of supported runtimes, including Exec, Docker, Podman, raw_exec, and more. This function should be modified
+# to install the runtime that is appropriate for your environment. By default the no runtimes will be enabled.
 function install_runtime {
     log "INFO" "Installing a runtime..."
     log "INFO" "Done installing runtime."
@@ -189,7 +237,7 @@ function retrieve_gossip_encryption_key_from_awssm {
     local SECRET_REGION=$AWS_REGION
     if [[ -z "$SECRET_ARN" ]]; then
         log "ERROR" "Secret ARN cannot be empty. Exiting."
-        exit_script 5   
+        exit_script 5
     elif [[ "$SECRET_ARN" == arn:aws:secretsmanager:* ]]; then
         log "INFO" "Retrieving value of secret '$SECRET_ARN' from AWS Secrets Manager."
         GOSSIP_ENCRYPTION_KEY=$(aws secretsmanager get-secret-value --region $SECRET_REGION --secret-id $SECRET_ARN --query SecretString --output text)
@@ -230,20 +278,64 @@ function directory_create {
     log "INFO" "Done creating necessary directories."
 }
 
+function checksum_verify {
+  local os_arch="$1"
+
+  # https://www.hashicorp.com/en/trust/security
+  # checksum_verify downloads the $$PRODUCT binary and verifies its integrity
+  log "INFO" "Verifying the integrity of the $${PRODUCT} binary."
+  export GNUPGHOME=./.gnupg
+  log "INFO" "Importing HashiCorp GPG key."
+  sudo curl -s https://www.hashicorp.com/.well-known/pgp-key.txt | gpg --import
+
+	log "INFO" "Downloading $${PRODUCT} binary"
+  sudo curl -Os https://releases.hashicorp.com/"$${PRODUCT}"/"$${VERSION}"/"$${PRODUCT}"_"$${VERSION}"_"$${OS_ARCH}".zip
+	log "INFO" "Downloading Vault Enterprise binary checksum files"
+  sudo curl -Os https://releases.hashicorp.com/"$${PRODUCT}"/"$${VERSION}"/"$${PRODUCT}"_"$${VERSION}"_SHA256SUMS
+	log "INFO" "Downloading Vault Enterprise binary checksum signature file"
+  sudo curl -Os https://releases.hashicorp.com/"$${PRODUCT}"/"$${VERSION}"/"$${PRODUCT}"_"$${VERSION}"_SHA256SUMS.sig
+  log "INFO" "Verifying the signature file is untampered."
+  gpg --verify "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS.sig "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS
+	if [[ $? -ne 0 ]]; then
+		log "ERROR" "Gpg verification failed for SHA256SUMS."
+		exit_script 1
+	fi
+  if [ -x "$(command -v sha256sum)" ]; then
+		log "INFO" "Using sha256sum to verify the checksum of the $${PRODUCT} binary."
+		sha256sum -c "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS --ignore-missing
+	else
+		log "INFO" "Using shasum to verify the checksum of the $${PRODUCT} binary."
+		shasum -a 256 -c "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS --ignore-missing
+	fi
+	if [[ $? -ne 0 ]]; then
+		log "ERROR" "Checksum verification failed for the $${PRODUCT} binary."
+		exit_script 1
+	fi
+
+	log "INFO" "Checksum verification passed for the $${PRODUCT} binary."
+
+	log "INFO" "Removing the downloaded files to clean up"
+	sudo rm -f "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS.sig
+
+}
+
 # install_nomad_binary downloads the Nomad binary and puts it in dedicated bin directory
 function install_nomad_binary {
-    log "INFO" "Installing Nomad binary to: $NOMAD_DIR_BIN..."
+	local os_arch="$1"
 
-    # Download the Nomad binary to the dedicated bin directory
-    sudo curl -so $NOMAD_DIR_BIN/nomad.zip $NOMAD_INSTALL_URL
+  log "INFO" "Deploying Nomad Enterprise binary to $NOMAD_DIR_BIN unzip and set permissions"
+	sudo unzip "$${PRODUCT}"_"$${NOMAD_VERSION}"_"$${OS_ARCH}".zip  nomad -d $NOMAD_DIR_BIN
+	sudo unzip "$${PRODUCT}"_"$${NOMAD_VERSION}"_"$${OS_ARCH}".zip -x nomad -d $NOMAD_DIR_LICENSE
+	sudo rm -f "$${PRODUCT}"_"$${NOMAD_VERSION}"_"$${OS_ARCH}".zip
 
-    # Unzip the Nomad binary
-    sudo unzip $NOMAD_DIR_BIN/nomad.zip nomad -d $NOMAD_DIR_BIN
-    sudo unzip $NOMAD_DIR_BIN/nomad.zip -x nomad -d $NOMAD_DIR_LICENSE
+	# Set the permissions for the nomad binary
+	sudo chmod 0755 $NOMAD_DIR_BIN/nomad
+	sudo chown $NOMAD_USER:$NOMAD_GROUP $NOMAD_DIR_BIN/nomad
 
-    sudo rm $NOMAD_DIR_BIN/nomad.zip
+	# Create a symlink to the Nomad binary in /usr/local/bin
+	sudo ln -sf $NOMAD_DIR_BIN/nomad /usr/local/bin/nomad
 
-    log "INFO" "Done installing Nomad binary."
+	log "INFO" "Nomad binary installed successfully at $NOMAD_DIR_BIN/nomad"
 }
 
 function install_cni_plugins {
@@ -323,7 +415,7 @@ autopilot {
 tls {
   http      = true
   rpc       = true
-  cert_file = "$NOMAD_DIR_TLS/cert.pem" 
+  cert_file = "$NOMAD_DIR_TLS/cert.pem"
   key_file  = "$NOMAD_DIR_TLS/key.pem"
 %{ if nomad_tls_ca_bundle_secret_arn != "NONE" ~}
   ca_file   = "$NOMAD_DIR_TLS/bundle.pem"
@@ -433,19 +525,13 @@ function start_enable_nomad {
   log "[INFO]" "Done starting and enabling the nomad service."
 }
 
-function exit_script {
-  if [[ "$1" == 0 ]]; then
-    log "INFO" "nomad_custom_data script finished successfully!"
-  else
-    log "ERROR" "nomad_custom_data script finished with error code $1."
-  fi
 
-  exit "$1"
-}
 
 function main {
   log "INFO" "Beginning Nomad user_data script."
 
+  OS_ARCH=$(detect_architecture)
+	log "INFO" "Detected architecture is '$OS_ARCH'."
   OS_DISTRO=$(detect_os_distro)
   log "INFO" "Detected Linux OS distro is '$OS_DISTRO'."
   scrape_vm_info
@@ -454,7 +540,9 @@ function main {
   prepare_disk "/dev/sdf" "/var/lib/nomad" "nomad-data"
   user_group_create
   directory_create
-  install_nomad_binary
+  checksum_verify $OS_ARCH
+  log "INFO" "Installing Nomad version $NOMAD_VERSION for $OS_ARCH"
+  install_nomad_binary  $OS_ARCH
   %{ if nomad_client ~}
   install_runtime
   install_cni_plugins
@@ -474,7 +562,7 @@ function main {
   generate_nomad_config
   template_nomad_systemd
   start_enable_nomad
-  
+
   exit_script 0
 }
 

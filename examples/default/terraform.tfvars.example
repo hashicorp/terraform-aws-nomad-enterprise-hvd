@@ -14,13 +14,14 @@ nomad_tls_privkey_secret_arn            = "<arn:aws:secretsmanager:us-west-2:123
 nomad_tls_ca_bundle_secret_arn          = "<arn:aws:secretsmanager:us-west-2:123456789012:secret:tls-ca-bundle>"
 additional_package_names = ["<htop>"]
 
-# --- Nomad Configuration Settings --- # 
+# --- Nomad Configuration Settings --- #
 nomad_acl_enabled        = <true>
 nomad_client             = <true>
 nomad_server             = <true>
 nomad_ui_enabled         = <true>
 nomad_upstream_servers   = ["127.0.0.1"]
 nomad_datacenter         = "<dc1>"
+nomad_region             = "<dc1>"
 autopilot_health_enabled = <true>
 nomad_version            = "<1.9.1+ent>"
 cni_version              = "<1.6.0>"

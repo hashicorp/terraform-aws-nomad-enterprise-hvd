@@ -5,7 +5,7 @@
 # User Data (cloud-init) arguments
 #------------------------------------------------------------------------------
 locals {
-
+  template_name = "${var.friendly_name_prefix}-nomad"
   custom_data_args = {
 
     # https://developer.hashicorp.com/nomad/docs/configuration
@@ -43,124 +43,9 @@ locals {
     template_name            = local.template_name
     autopilot_health_enabled = var.autopilot_health_enabled
   }
+  custom_install_tpl          = var.custom_install_template != null ? "${path.cwd}/templates/${var.custom_install_template}" : "${path.module}/templates/nomad_custom_data.sh.tpl"
+  user_data_template_rendered = templatefile(local.custom_install_tpl, local.custom_data_args)
 
-  user_data_template_rendered = templatefile("${path.module}/templates/nomad_custom_data.sh.tpl", local.custom_data_args)
-}
-
-#------------------------------------------------------------------------------
-# EC2 AMI data sources
-#------------------------------------------------------------------------------
-data "aws_ami" "ubuntu" {
-  count = var.ec2_os_distro == "ubuntu" && var.ec2_ami_id == null ? 1 : 0
-
-  owners      = ["099720109477", "513442679011"]
-  most_recent = true
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-
-  filter {
-    name   = "state"
-    values = ["available"]
-  }
-}
-
-data "aws_ami" "rhel" {
-  count = var.ec2_os_distro == "rhel" && var.ec2_ami_id == null ? 1 : 0
-
-  owners      = ["309956199498"]
-  most_recent = true
-
-  filter {
-    name   = "name"
-    values = ["RHEL-9.*_HVM-*-x86_64-*-Hourly2-GP3"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-
-  filter {
-    name   = "state"
-    values = ["available"]
-  }
-}
-
-data "aws_ami" "al2023" {
-  count = var.ec2_os_distro == "al2023" && var.ec2_ami_id == null ? 1 : 0
-
-  owners      = ["amazon"]
-  most_recent = true
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-2023.*-x86_64"]
-  }
-
-  filter {
-    name   = "root-device-type"
-    values = ["ebs"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-
-  filter {
-    name   = "state"
-    values = ["available"]
-  }
-}
-
-#------------------------------------------------------------------------------
-# Launch Template
-#------------------------------------------------------------------------------
-locals {
-  # If an AMI ID is provided via `var.ec2_ami_id`, use it. Otherwise,
-  # use the latest AMI for the specified OS distro via `var.ec2_os_distro`.
-
-  ami_id_list = tolist([
-    var.ec2_ami_id,
-    join("", data.aws_ami.ubuntu.*.image_id),
-    join("", data.aws_ami.rhel.*.image_id),
-    join("", data.aws_ami.al2023.*.image_id),
-  ])
-  ami_root_device_name_list = tolist([
-    join("", data.aws_ami.provided.*.root_device_name),
-    join("", data.aws_ami.ubuntu.*.root_device_name),
-    join("", data.aws_ami.rhel.*.root_device_name),
-    join("", data.aws_ami.al2023.*.root_device_name),
-  ])
-
-  template_name = "${var.friendly_name_prefix}-nomad"
-}
-
-data "aws_ami" "provided" {
-  count = var.ec2_ami_id != null ? 1 : 0
-
-  filter {
-    name   = "image-id"
-    values = [var.ec2_ami_id]
-  }
 }
 
 resource "aws_launch_template" "nomad" {
@@ -245,10 +130,10 @@ resource "aws_placement_group" "nomad" {
 # Autoscaling Group
 #------------------------------------------------------------------------------
 resource "aws_autoscaling_group" "nomad" {
-  name                      = local.template_name
-  min_size                  = var.nomad_nodes
-  max_size                  = var.nomad_nodes * 2
-  desired_capacity          = var.nomad_nodes
+  name             = local.template_name
+  min_size         = var.nomad_nodes
+  max_size         = var.nomad_nodes * 2
+  desired_capacity = var.nomad_nodes
   #wait_for_elb_capacity     = var.nomad_nodes # Not evaluated for instances without ELB
   #wait_for_capacity_timeout = "1200s"
   health_check_grace_period = var.asg_health_check_grace_period
