@@ -1,0 +1,548 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+LOGFILE="/var/log/nomad-cloud-init.log"
+SYSTEMD_DIR="${systemd_dir}"
+NOMAD_DIR_CONFIG="${nomad_dir_config}"
+NOMAD_CONFIG_PATH="$NOMAD_DIR_CONFIG/nomad.hcl"
+NOMAD_DIR_TLS="${nomad_dir_config}/tls"
+NOMAD_DIR_DATA="${nomad_dir_home}/data"
+NOMAD_DIR_LICENSE="${nomad_dir_home}/license"
+NOMAD_DIR_ALLOC_MOUNTS="${nomad_dir_home}/alloc_mounts"
+NOMAD_LICENSE_PATH="$NOMAD_DIR_LICENSE/license.hclic"
+NOMAD_DIR_LOGS="/var/log/nomad"
+NOMAD_DIR_BIN="${nomad_dir_bin}"
+CNI_DIR_BIN="${cni_dir_bin}"
+NOMAD_USER="root"
+NOMAD_GROUP="root"
+# NOMAD_INSTALL_URL="${nomad_install_url}"
+PRODUCT="nomad"
+NOMAD_VERSION="${nomad_version}"
+VERSION=$NOMAD_VERSION
+REQUIRED_PACKAGES="curl jq unzip"
+AWS_REGION="${aws_region}"
+ADDITIONAL_PACKAGES="${additional_package_names}"
+
+function log {
+    local level="$1"
+    local message="$2"
+    local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+    local log_entry="$timestamp [$level] - $message"
+
+    echo "$log_entry" | tee -a "$LOGFILE"
+}
+
+function exit_script {
+  if [[ "$1" == 0 ]]; then
+    log "INFO" "nomad_custom_data script finished successfully!"
+  else
+    log "ERROR" "nomad_custom_data script finished with error code $1."
+  fi
+
+  exit "$1"
+}
+
+function detect_architecture {
+  local ARCHITECTURE=""
+  local OS_ARCH_DETECTED=$(uname -m)
+
+  case "$OS_ARCH_DETECTED" in
+    "x86_64"*)
+      ARCHITECTURE="linux_amd64"
+      ;;
+    "aarch64"*)
+      ARCHITECTURE="linux_arm64"
+      ;;
+		"arm"*)
+      ARCHITECTURE="linux_arm"
+			;;
+    *)
+      log "ERROR" "Unsupported architecture detected: '$OS_ARCH_DETECTED'. "
+		  exit_script 1
+			;;
+  esac
+
+  echo "$ARCHITECTURE"
+
+}
+
+function detect_os_distro {
+    local OS_DISTRO_NAME=$(grep "^NAME=" /etc/os-release | cut -d"\"" -f2)
+    local OS_DISTRO_DETECTED
+
+    case "$OS_DISTRO_NAME" in
+    "Ubuntu"*)
+        OS_DISTRO_DETECTED="ubuntu"
+        ;;
+    "CentOS"*)
+        OS_DISTRO_DETECTED="centos"
+        ;;
+    "Red Hat"*)
+        OS_DISTRO_DETECTED="rhel"
+        ;;
+    "Amazon Linux"*)
+        OS_DISTRO_DETECTED="al2023"
+        ;;
+    *)
+        log "ERROR" "'$OS_DISTRO_NAME' is not a supported Linux OS distro for this NOMAD module."
+        exit_script 1
+        ;;
+    esac
+
+    echo "$OS_DISTRO_DETECTED"
+}
+
+function prepare_disk() {
+  log "INFO" "Preparing Nomad data disk"
+  local device_name="$1"
+  log "DEBUG" "prepare_disk - device_name; $${device_name}"
+
+  local device_mountpoint="$2"
+  log "DEBUG" "prepare_disk - device_mountpoint; $${device_mountpoint}"
+
+  local device_label="$3"
+  log "DEBUG" "prepare_disk - device_label; $${device_label}"
+
+  sleep 20
+  local ebs_volume_id=$(aws ec2 describe-volumes --filters Name=attachment.device,Values=$${device_name} Name=attachment.instance-id,Values=$INSTANCE_ID --query 'Volumes[*].{ID:VolumeId}' --region ${aws_region} --output text | tr -d '-' )
+
+  if [[ -z "$${ebs_volume_id}" ]]; then
+    log "ERROR" "No EBS volume found attached to device $${device_name}"
+    exit_script 1
+  fi
+
+
+  log "DEBUG" "prepare_disk - ebs_volume_id; $${ebs_volume_id}"
+
+
+  local device_id=$(readlink -f /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$${ebs_volume_id})
+  log "DEBUG" "prepare_disk - device_id; $${device_id}"
+
+  mkdir $device_mountpoint
+
+  # exclude quotes on device_label or formatting will fail
+  mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0 -L $device_label $${device_id}
+
+  echo "LABEL=$device_label $device_mountpoint ext4 defaults 0 2" >> /etc/fstab
+
+  mount -a
+}
+
+function install_prereqs {
+    local OS_DISTRO="$1"
+    log "INFO" "Installing required packages..."
+
+    if [[ "$OS_DISTRO" == "ubuntu" ]]; then
+        sleep 60
+        apt-get update -y
+        apt-get install -y $REQUIRED_PACKAGES $ADDITIONAL_PACKAGES
+    elif [[ "$OS_DISTRO" == "rhel" ]]; then
+        yum install -y $REQUIRED_PACKAGES $ADDITIONAL_PACKAGES
+    elif [[ "$OS_DISTRO" == "amzn2023" ]]; then
+        yum install -y $REQUIRED_PACKAGES $ADDITIONAL_PACKAGES
+        log "INFO" "Enabling gnupg2-full for Amazon Linux 2023."
+        dnf swap gnupg2-minimal gnupg2-full -y
+    else
+        log "ERROR" "Unsupported OS distro '$OS_DISTRO'. Exiting."
+        exit_script 1
+    fi
+}
+
+function install_awscli {
+    local OS_DISTRO="$1"
+    local OS_VERSION=$(grep "^VERSION=" /etc/os-release | cut -d"\"" -f2)
+
+    if command -v aws >/dev/null; then
+        log "INFO" "Detected 'aws-cli' is already installed. Skipping."
+    else
+        log "INFO" "Installing 'aws-cli'."
+        curl -sS "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        if command -v unzip >/dev/null; then
+            unzip -qq awscliv2.zip
+        elif command -v busybox >/dev/null; then
+            busybox unzip -qq awscliv2.zip
+        else
+            log "WARNING" "No 'unzip' utility found. Attempting to install 'unzip'."
+            if [[ "$OS_DISTRO" == "ubuntu" || "$OS_DISTRO" == "debian" ]]; then
+                apt-get update -y
+                apt-get install unzip -y
+            elif [[ "$OS_DISTRO" == "centos" || "$OS_DISTRO" == "rhel" || "$OS_DISTRO" == "al2023" ]]; then
+                yum install unzip -y
+            else
+                log "ERROR" "Unable to install required 'unzip' utility. Exiting."
+                exit_script 2
+            fi
+            unzip -qq awscliv2.zip
+        fi
+        ./aws/install >/dev/null
+        rm -f ./awscliv2.zip && rm -rf ./aws
+    fi
+}
+
+function scrape_vm_info {
+  log "INFO" "Scraping EC2 instance metadata for required information..."
+  EC2_TOKEN=$(curl -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+  INSTANCE_ID="$(curl -s -H "X-aws-ec2-metadata-token: $EC2_TOKEN" http://169.254.169.254/latest/meta-data/instance-id)"
+  AVAILABILITY_ZONE="$(curl -s -H "X-aws-ec2-metadata-token: $EC2_TOKEN" http://169.254.169.254/latest/meta-data/placement/availability-zone)"
+  log "INFO" "Detected EC2 instance ID is '$INSTANCE_ID' and availability zone is '$AVAILABILITY_ZONE'."
+}
+
+# For Nomad there are a number of supported runtimes, including Exec, Docker, Podman, raw_exec, and more. This function should be modified
+# to install the runtime that is appropriate for your environment. By default the no runtimes will be enabled.
+function install_runtime {
+    log "INFO" "Installing a runtime..."
+    log "INFO" "Done installing runtime."
+}
+
+function retrieve_license_from_awssm {
+    local SECRET_ARN="$1"
+    local SECRET_REGION=$AWS_REGION
+
+    if [[ -z "$SECRET_ARN" ]]; then
+        log "ERROR" "Secret ARN cannot be empty. Exiting."
+        exit_script 4
+    elif [[ "$SECRET_ARN" == arn:aws:secretsmanager:* ]]; then
+        log "INFO" "Retrieving value of secret '$SECRET_ARN' from AWS Secrets Manager."
+        NOMAD_LICENSE=$(aws secretsmanager get-secret-value --region $SECRET_REGION --secret-id $SECRET_ARN --query SecretString --output text)
+        echo "$NOMAD_LICENSE" >$NOMAD_LICENSE_PATH
+    else
+        log "WARNING" "Did not detect AWS Secrets Manager secret ARN. Setting value of secret to what was passed in."
+        NOMAD_LICENSE="$SECRET_ARN"
+        echo "$NOMAD_LICENSE" >$NOMAD_LICENSE_PATH
+    fi
+}
+
+function retrieve_certs_from_awssm {
+    local SECRET_ARN="$1"
+    local DESTINATION_PATH="$2"
+    local SECRET_REGION=$AWS_REGION
+    local CERT_DATA
+
+    if [[ -z "$SECRET_ARN" ]]; then
+        log "ERROR" "Secret ARN cannot be empty. Exiting."
+        exit_script 5
+    elif [[ "$SECRET_ARN" == arn:aws:secretsmanager:* ]]; then
+        log "INFO" "Retrieving value of secret '$SECRET_ARN' from AWS Secrets Manager."
+        CERT_DATA=$(aws secretsmanager get-secret-value --region $SECRET_REGION --secret-id $SECRET_ARN --query SecretString --output text)
+        echo "$CERT_DATA" | base64 -d >$DESTINATION_PATH
+    else
+        log "WARNING" "Did not detect AWS Secrets Manager secret ARN. Setting value of secret to what was passed in."
+        CERT_DATA="$SECRET_ARN"
+        echo "$CERT_DATA" | base64 -d >$DESTINATION_PATH
+    fi
+}
+
+function retrieve_gossip_encryption_key_from_awssm {
+    local SECRET_ARN="$1"
+    local SECRET_REGION=$AWS_REGION
+    if [[ -z "$SECRET_ARN" ]]; then
+        log "ERROR" "Secret ARN cannot be empty. Exiting."
+        exit_script 5
+    elif [[ "$SECRET_ARN" == arn:aws:secretsmanager:* ]]; then
+        log "INFO" "Retrieving value of secret '$SECRET_ARN' from AWS Secrets Manager."
+        GOSSIP_ENCRYPTION_KEY=$(aws secretsmanager get-secret-value --region $SECRET_REGION --secret-id $SECRET_ARN --query SecretString --output text)
+    else
+        log "WARNING" "Did not detect AWS Secrets Manager secret ARN. Setting value of secret to what was passed in."
+        GOSSIP_ENCRYPTION_KEY="$SECRET_ARN"
+    fi
+}
+
+function directory_create {
+    log "INFO" "Creating necessary directories..."
+
+    # Define all directories needed as an array
+    directories=($NOMAD_DIR_CONFIG $NOMAD_DIR_DATA $NOMAD_DIR_TLS $NOMAD_DIR_LICENSE $NOMAD_DIR_LOGS $CNI_DIR_BIN $NOMAD_DIR_ALLOC_MOUNTS)
+
+    # Loop through each item in the array; create the directory and configure permissions
+    for directory in "$${directories[@]}"; do
+        log "INFO" "Creating $directory"
+
+        mkdir -p $directory
+        # sudo chown $NOMAD_USER:$NOMAD_GROUP $directory
+        sudo chmod 750 $directory
+    done
+
+    log "INFO" "Done creating necessary directories."
+}
+
+function checksum_verify {
+  local os_arch="$1"
+
+  # https://www.hashicorp.com/en/trust/security
+  # checksum_verify downloads the $$PRODUCT binary and verifies its integrity
+  log "INFO" "Verifying the integrity of the $${PRODUCT} binary."
+  export GNUPGHOME=./.gnupg
+  log "INFO" "Importing HashiCorp GPG key."
+  sudo curl -s https://www.hashicorp.com/.well-known/pgp-key.txt | gpg --import
+
+	log "INFO" "Downloading $${PRODUCT} binary"
+  sudo curl -Os https://releases.hashicorp.com/"$${PRODUCT}"/"$${VERSION}"/"$${PRODUCT}"_"$${VERSION}"_"$${OS_ARCH}".zip
+	log "INFO" "Downloading Vault Enterprise binary checksum files"
+  sudo curl -Os https://releases.hashicorp.com/"$${PRODUCT}"/"$${VERSION}"/"$${PRODUCT}"_"$${VERSION}"_SHA256SUMS
+	log "INFO" "Downloading Vault Enterprise binary checksum signature file"
+  sudo curl -Os https://releases.hashicorp.com/"$${PRODUCT}"/"$${VERSION}"/"$${PRODUCT}"_"$${VERSION}"_SHA256SUMS.sig
+  log "INFO" "Verifying the signature file is untampered."
+  gpg --verify "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS.sig "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS
+	if [[ $? -ne 0 ]]; then
+		log "ERROR" "Gpg verification failed for SHA256SUMS."
+		exit_script 1
+	fi
+  if [ -x "$(command -v sha256sum)" ]; then
+		log "INFO" "Using sha256sum to verify the checksum of the $${PRODUCT} binary."
+		sha256sum -c "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS --ignore-missing
+	else
+		log "INFO" "Using shasum to verify the checksum of the $${PRODUCT} binary."
+		shasum -a 256 -c "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS --ignore-missing
+	fi
+	if [[ $? -ne 0 ]]; then
+		log "ERROR" "Checksum verification failed for the $${PRODUCT} binary."
+		exit_script 1
+	fi
+
+	log "INFO" "Checksum verification passed for the $${PRODUCT} binary."
+
+	log "INFO" "Removing the downloaded files to clean up"
+	sudo rm -f "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS "$${PRODUCT}"_"$${VERSION}"_SHA256SUMS.sig
+
+}
+
+# install_nomad_binary downloads the Nomad binary and puts it in dedicated bin directory
+function install_nomad_binary {
+	local os_arch="$1"
+
+  log "INFO" "Deploying Nomad Enterprise binary to $NOMAD_DIR_BIN unzip and set permissions"
+	sudo unzip "$${PRODUCT}"_"$${NOMAD_VERSION}"_"$${OS_ARCH}".zip  nomad -d $NOMAD_DIR_BIN
+	sudo unzip "$${PRODUCT}"_"$${NOMAD_VERSION}"_"$${OS_ARCH}".zip -x nomad -d $NOMAD_DIR_LICENSE
+	sudo rm -f "$${PRODUCT}"_"$${NOMAD_VERSION}"_"$${OS_ARCH}".zip
+
+	# Set the permissions for the nomad binary
+	sudo chmod 0755 $NOMAD_DIR_BIN/nomad
+	# sudo chown $NOMAD_USER:$NOMAD_GROUP $NOMAD_DIR_BIN/nomad
+
+	# Create a symlink to the Nomad binary in /usr/local/bin
+	sudo ln -sf $NOMAD_DIR_BIN/nomad /usr/local/bin/nomad
+
+	log "INFO" "Nomad binary installed successfully at $NOMAD_DIR_BIN/nomad"
+}
+
+function install_cni_plugins {
+    log "INFO" "Installing CNI plugins..."
+
+    # Download the CNI plugins
+    sudo curl -Lso $CNI_DIR_BIN/cni-plugins.tgz "${cni_install_url}"
+
+    # Untar the CNI plugins
+    tar -C $CNI_DIR_BIN -xzf $CNI_DIR_BIN/cni-plugins.tgz
+}
+
+function configure_sysctl {
+    log "INFO" "Configuring sysctl settings..."
+
+    # Configure sysctl settings for Nomad
+    tee -a /etc/sysctl.d/bridge.conf <<-EOF
+    net.bridge.bridge-nf-call-arptables = 1
+    net.bridge.bridge-nf-call-ip6tables = 1
+    net.bridge.bridge-nf-call-iptables = 1
+EOF
+}
+
+function generate_nomad_config {
+  log "INFO" "Generating $NOMAD_CONFIG_PATH file."
+
+
+  cat >$NOMAD_CONFIG_PATH <<EOF
+
+# Full configuration options can be found at https://developer.hashicorp.com/nomad/docs/configuration
+
+%{ if nomad_acl_enabled }
+acl {
+  enabled = true
+}%{ endif }
+
+data_dir  = "/opt/nomad/data"
+bind_addr = "0.0.0.0"
+
+datacenter = "${nomad_datacenter}"
+region     = "${nomad_region}"
+
+# leave_on_interrupt = true
+# leave_on_terminate = true
+
+enable_syslog   = true
+syslog_facility = "daemon"
+
+%{ if nomad_server }
+server {
+  enabled          = true
+
+  bootstrap_expect = "${nomad_nodes}"
+  license_path     = "$NOMAD_LICENSE_PATH"
+  encrypt          = "$GOSSIP_ENCRYPTION_KEY"
+  redundancy_zone  = "$AVAILABILITY_ZONE"
+
+  server_join {
+    retry_join = ["provider=aws addr_type=private_v4 tag_key=Environment-Name tag_value=${template_name}"]
+  }
+}
+
+%{ if autopilot_health_enabled }
+autopilot {
+    cleanup_dead_servers      = true
+    last_contact_threshold    = "200ms"
+    max_trailing_logs         = 250
+    server_stabilization_time = "10s"
+    enable_redundancy_zones   = true
+    disable_upgrade_migration = false
+    enable_custom_upgrades    = false
+}
+%{ endif }
+%{ endif }
+
+%{ if nomad_tls_enabled }
+tls {
+  http      = true
+  rpc       = true
+  cert_file = "$NOMAD_DIR_TLS/cert.pem"
+  key_file  = "$NOMAD_DIR_TLS/key.pem"
+%{ if nomad_tls_ca_bundle_secret_arn != "NONE" ~}
+  ca_file   = "$NOMAD_DIR_TLS/bundle.pem"
+%{ endif ~}
+  verify_server_hostname = true
+  verify_https_client    = false
+}
+%{ endif }
+
+%{ if nomad_client }
+client {
+  enabled = true
+%{ if nomad_upstream_servers != null ~}
+servers = [
+%{ for addr in formatlist("%s",nomad_upstream_servers) ~}
+   "${addr}",
+%{ endfor ~}
+]
+%{ else }
+  server_join {
+    retry_join = ["provider=aws addr_type=private_v4 tag_key=${nomad_upstream_tag_key} tag_value=${nomad_upstream_tag_value}"]
+  }
+%{ endif }
+}
+%{ endif }
+
+telemetry {
+  collection_interval = "1s"
+  disable_hostname = true
+  prometheus_metrics = true
+  publish_allocation_metrics = true
+  publish_node_metrics = true
+}
+
+ui {
+  enabled = ${ nomad_ui_enabled }
+}
+EOF
+
+  # chown $NOMAD_USER:$NOMAD_GROUP $NOMAD_CONFIG_PATH
+  chmod 640 $NOMAD_CONFIG_PATH
+}
+
+function template_nomad_systemd {
+  log "[INFO]" "Templating out the Nomad service..."
+
+  local kill_cmd=$(which kill)
+  sudo bash -c "cat > $SYSTEMD_DIR/nomad.service" <<EOF
+[Unit]
+Description=HashiCorp Nomad
+Documentation=https://nomadproject.io/docs/
+Wants=network-online.target
+After=network-online.target
+ConditionFileNotEmpty=$NOMAD_CONFIG_PATH
+
+# When using Nomad with Consul it is not necessary to start Consul first. These
+# lines start Consul before Nomad as an optimization to avoid Nomad logging
+# that Consul is unavailable at startup.
+#Wants=consul.service
+#After=consul.service
+
+[Service]
+
+# Nomad clients need to be run as "root" whereas Nomad servers should be run as
+# the "nomad" user. Please change this if needed.
+User=$NOMAD_USER
+Group=$NOMAD_GROUP
+
+ExecStart=$NOMAD_DIR_BIN/nomad agent -config $NOMAD_DIR_CONFIG
+ExecReload=$${kill_cmd} --signal HUP \$MAINPID
+KillMode=process
+KillSignal=SIGINT
+Restart=on-failure
+RestartSec=2
+LimitNOFILE=65536
+LimitNPROC=infinity
+EnvironmentFile=-$NOMAD_DIR_CONFIG/nomad.env
+Type=notify
+TasksMax=infinity
+
+# Nomad Server agents should never be force killed,
+# so here we disable OOM (out of memory) killing for this unit.
+# However, you may wish to change this for Client agents, since
+# the workloads that Nomad places may be more important
+# than the Nomad agent itself.
+OOMScoreAdjust=-1000
+
+[Install]
+WantedBy=multi-user.target
+EOF
+}
+
+# start_enable_nomad starts and enables the nomad service
+function start_enable_nomad {
+  log "[INFO]" "Starting and enabling the nomad service..."
+
+  sudo systemctl enable nomad
+  sudo systemctl start nomad
+
+  log "[INFO]" "Done starting and enabling the nomad service."
+}
+
+
+
+function main {
+  log "INFO" "Beginning Nomad user_data script."
+
+  OS_ARCH=$(detect_architecture)
+	log "INFO" "Detected architecture is '$OS_ARCH'."
+  OS_DISTRO=$(detect_os_distro)
+  log "INFO" "Detected Linux OS distro is '$OS_DISTRO'."
+  scrape_vm_info
+  install_prereqs "$OS_DISTRO"
+  install_awscli "$OS_DISTRO"
+  prepare_disk "/dev/sdf" "/var/lib/nomad" "nomad-data"
+  directory_create
+  checksum_verify $OS_ARCH
+  log "INFO" "Installing Nomad version $NOMAD_VERSION for $OS_ARCH"
+  install_nomad_binary  $OS_ARCH
+  %{ if nomad_client ~}
+  install_runtime
+  install_cni_plugins
+  configure_sysctl
+  %{ endif ~}
+  %{ if nomad_server ~}
+  retrieve_license_from_awssm "${nomad_license_secret_arn}"
+  retrieve_gossip_encryption_key_from_awssm "${nomad_gossip_encryption_key_secret_arn}"
+  %{ endif ~}
+  %{ if nomad_tls_enabled ~}
+  retrieve_certs_from_awssm "${nomad_tls_cert_secret_arn}" "$NOMAD_DIR_TLS/cert.pem"
+  retrieve_certs_from_awssm "${nomad_tls_privkey_secret_arn}" "$NOMAD_DIR_TLS/key.pem"
+  %{ if nomad_tls_ca_bundle_secret_arn != "NONE" ~}
+  retrieve_certs_from_awssm "${nomad_tls_ca_bundle_secret_arn}" "$NOMAD_DIR_TLS/bundle.pem"
+  %{ endif ~}
+  %{ endif ~}
+  generate_nomad_config
+  template_nomad_systemd
+  start_enable_nomad
+
+  exit_script 0
+}
+
+main

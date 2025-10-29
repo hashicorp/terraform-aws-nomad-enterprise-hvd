@@ -7,11 +7,12 @@ common_tags = {
 region = "<us-east-1>"
 
 # --- Prereqs --- #
-additional_package_names = ["<htop>"]
+additional_package_names = ["<docker.io>"]
+custom_install_template  = "<file_name.tpl>"
 
 # --- Nomad Configuration Settings --- # 
 nomad_acl_enabled        = <true>
-nomad_client             = <false>
+nomad_client             = <true>
 nomad_server             = <false>
 nomad_ui_enabled         = <false>
 nomad_upstream_tag_key   = "<Environment-Name>" #The AWS Tag Key that the Nomad Server Nodes are tagged with

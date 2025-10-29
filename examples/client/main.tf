@@ -35,6 +35,8 @@ module "nomad" {
   nomad_nodes                   = var.nomad_nodes
   asg_health_check_grace_period = var.asg_health_check_grace_period
   ec2_allow_ssm                 = var.ec2_allow_ssm
+  custom_install_template       = var.custom_install_template
+  additional_package_names      = var.additional_package_names
 
   # --- Networking --- #
   additional_security_group_ids = var.additional_security_group_ids
