@@ -482,14 +482,6 @@ StartLimitBurst=3
 [Service]
 User=$NOMAD_USER
 Group=$NOMAD_GROUP
-ProtectSystem=full
-ProtectHome=read-only
-PrivateTmp=yes
-PrivateDevices=yes
-SecureBits=keep-caps
-AmbientCapabilities=CAP_IPC_LOCK
-CapabilityBoundingSet=CAP_SYSLOG CAP_IPC_LOCK
-NoNewPrivileges=yes
 ExecStart=$NOMAD_DIR_BIN/nomad agent -config $NOMAD_DIR_CONFIG
 ExecReload=$${kill_cmd} --signal HUP \$MAINPID
 KillMode=process
