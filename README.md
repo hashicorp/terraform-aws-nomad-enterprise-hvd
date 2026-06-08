@@ -64,16 +64,20 @@ The following secrets must be stored in **AWS Secrets Manager** to bootstrap the
         │   ├── main.tf
         │   ├── outputs.tf
         │   ├── terraform.tfvars
-        │   └── variables.tf
+        │   ├── variables.tf
+        │   └── variables_provider.tf
         └── sandbox
             ├── backend.tf
             ├── main.tf
             ├── outputs.tf
             ├── terraform.tfvars
-            └── variables.tf
+            ├── variables.tf
+            └── variables_provider.tf
     ```
 
     >📝 This example has two separate Nomad deployments: one for a `sandbox` environment and one for a `production` environment.
+
+    >📝 Note: `variables_provider.tf` defines provider configuration variables (not module variables) and must be copied from the examples directory.
 
 3. (Optional) If using S3 for remote state, configure the `backend.tf` file with custom values.
 
