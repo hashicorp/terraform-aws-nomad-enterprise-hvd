@@ -25,7 +25,7 @@ Terraform module aligned with HashiCorp Validated Designs (HVD) to deploy Nomad 
 
 ### TLS certificates
 
-TLS certificates for Nomad have very specific requirements for server and client nodes. [Nomad Agent Certificates](https://developer.hashicorp.com/nomad/tutorials/transport-security/security-enable-tls#agent-certificates) Let's Encrypt Certificates can not be used for Nomad due to the Nomad specific requirements. This module has the option to not enable TLS with `nomad_tls_enabled` however this should never be used outside a lab environment.
+TLS certificates for Nomad have very specific requirements for server and client nodes. [Nomad Agent Certificates](https://developer.hashicorp.com/nomad/docs/secure/traffic/tls#agent-certificates) Let's Encrypt Certificates can not be used for Nomad due to the Nomad specific requirements. This module has the option to not enable TLS with `nomad_tls_enabled` however this should never be used outside a lab environment.
 
 - TLS certificate (_e.g._ `cert.pem`) and private key (_e.g._ `privkey.pem`) for the Nomad web UI, in PEM format.
   - TLS private key must **not** be password-protected.
