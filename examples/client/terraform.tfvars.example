@@ -7,11 +7,14 @@ common_tags = {
 region = "<us-east-1>"
 
 # --- Prereqs --- #
+nomad_tls_cert_secret_arn               = "<arn:aws:secretsmanager:us-west-2:123456789012:secret:tls-cert>"
+nomad_tls_privkey_secret_arn            = "<arn:aws:secretsmanager:us-west-2:123456789012:secret:tls-privkey>"
+nomad_tls_ca_bundle_secret_arn          = "<arn:aws:secretsmanager:us-west-2:123456789012:secret:tls-ca-bundle>"
 additional_package_names = ["<htop>"]
 
 # --- Nomad Configuration Settings --- # 
 nomad_acl_enabled        = <true>
-nomad_client             = <false>
+nomad_client             = <true>
 nomad_server             = <false>
 nomad_ui_enabled         = <false>
 nomad_upstream_tag_key   = "<Environment-Name>" #The AWS Tag Key that the Nomad Server Nodes are tagged with
