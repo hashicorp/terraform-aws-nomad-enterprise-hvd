@@ -27,13 +27,13 @@ locals {
     nomad_dir_home           = "/opt/nomad",
     nomad_install_url        = format("https://releases.hashicorp.com/nomad/%s/nomad_%s_linux_%s.zip", var.nomad_version, var.nomad_version, var.nomad_architecture)
     cni_install_url          = format("https://github.com/containernetworking/plugins/releases/download/v%s/cni-plugins-linux-%s-v%s.tgz", var.cni_version, var.nomad_architecture, var.cni_version)
-    aws_region               = var.region
+    aws_region               = data.aws_region.deployment.name
     nomad_tls_enabled        = var.nomad_tls_enabled
     nomad_acl_enabled        = var.nomad_acl_enabled
     nomad_client             = var.nomad_client
     nomad_server             = var.nomad_server
     nomad_datacenter         = var.nomad_datacenter
-    nomad_region             = var.nomad_region == null ? var.region : var.nomad_region
+    nomad_region             = var.nomad_region == null ? data.aws_region.deployment.name : var.nomad_region
     nomad_ui_enabled         = var.nomad_ui_enabled
     nomad_upstream_servers   = var.nomad_upstream_servers
     nomad_upstream_tag_key   = var.nomad_upstream_tag_key

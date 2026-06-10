@@ -19,7 +19,6 @@ module "nomad" {
   # --- Common --- #
   friendly_name_prefix = var.friendly_name_prefix
   common_tags          = var.common_tags
-  region               = var.region
 
   # --- Bootstrap --- #
   nomad_license_secret_arn               = var.nomad_license_secret_arn

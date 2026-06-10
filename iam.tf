@@ -100,25 +100,25 @@ data "aws_iam_policy_document" "combined" {
 }
 
 resource "aws_iam_role_policy" "nomad_ec2" {
-  name   = "${var.friendly_name_prefix}-nomad-controller-instance-role-policy-${var.region}"
+  name   = "${var.friendly_name_prefix}-nomad-controller-instance-role-policy-${data.aws_region.deployment.name}"
   role   = aws_iam_role.nomad_ec2.id
   policy = data.aws_iam_policy_document.combined.json
 }
 
 resource "aws_iam_role" "nomad_ec2" {
-  name = "${var.friendly_name_prefix}-nomad-instance-role-${var.region}"
+  name = "${var.friendly_name_prefix}-nomad-instance-role-${data.aws_region.deployment.name}"
   path = "/"
 
   assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
 
   tags = merge(
-    { "Name" = "${var.friendly_name_prefix}-nomad-instance-role-${var.region}" },
+    { "Name" = "${var.friendly_name_prefix}-nomad-instance-role-${data.aws_region.deployment.name}" },
     var.common_tags
   )
 }
 
 resource "aws_iam_instance_profile" "nomad_ec2" {
-  name = "${var.friendly_name_prefix}-nomad-${var.region}"
+  name = "${var.friendly_name_prefix}-nomad-${data.aws_region.deployment.name}"
   path = "/"
   role = aws_iam_role.nomad_ec2.name
 }
