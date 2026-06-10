@@ -25,14 +25,16 @@ Terraform module aligned with HashiCorp Validated Designs (HVD) to deploy Nomad 
 
 ### TLS certificates
 
-TLS certificates for Nomad have very specific requirements for server and client nodes. [Nomad Agent Certificates](https://developer.hashicorp.com/nomad/docs/secure/traffic/tls#agent-certificates) Let's Encrypt Certificates can not be used for Nomad due to the Nomad specific requirements. This module has the option to not enable TLS with `nomad_tls_enabled` however this should never be used outside a lab environment.
+TLS certificates for Nomad have very specific requirements for server and client nodes. Let's Encrypt Certificates can not be used for Nomad due to the Nomad specific requirements. For TLS configuration details, refer to [Nomad Agent Certificates](https://developer.hashicorp.com/nomad/docs/secure/traffic/tls#agent-certificates).
+
+>📝 Note: This module has the option to not enable TLS with `nomad_tls_enabled` however this should never be used outside a lab environment.
 
 - TLS certificate (_e.g._ `cert.pem`) and private key (_e.g._ `privkey.pem`) for the Nomad web UI, in PEM format.
   - TLS private key must **not** be password-protected.
 - TLS certificate authority (CA) bundle (_e.g._ `ca_bundle.pem`) in PEM format.
 - These TLS files will be stored as secrets in AWS Secrets Manager.
 
->📝 Store these TLS files as AWS Secrets Manager secrets to securely manage your certificates.
+>📝 Note: Store these TLS files as AWS Secrets Manager secrets to securely manage your certificates.
 
 ### Gossip encryption
 
