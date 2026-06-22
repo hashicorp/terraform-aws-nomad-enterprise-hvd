@@ -121,4 +121,4 @@ data "aws_ami" "provided" {
 # AWS Deployment Region
 #------------------------------------------------------------------------------
 
-data "aws_region" "deployment" {}
+data "aws_region" "current" {}

@@ -15,7 +15,7 @@ You must explicitly set the `region` variable to your target AWS region (e.g., `
 
 | Name | Version |
 | ---- | ------- |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.64 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.0 |
 
 ## Modules
 
