@@ -16,7 +16,7 @@ data "aws_iam_policy_document" "gossip_encryption_key" {
   count = var.nomad_gossip_encryption_key_secret_arn != null ? 1 : 0
 
   statement {
-    sid     = "BoundaryDBPassword"
+    sid     = "NomadDBPassword"
     effect  = "Allow"
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
@@ -30,7 +30,7 @@ data "aws_iam_policy_document" "license" {
   count = var.nomad_license_secret_arn != null ? 1 : 0
 
   statement {
-    sid     = "BoundaryLicense"
+    sid     = "NomadLicense"
     effect  = "Allow"
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
@@ -43,7 +43,7 @@ data "aws_iam_policy_document" "tls_cert" {
   count = var.nomad_tls_cert_secret_arn != null ? 1 : 0
 
   statement {
-    sid     = "BoundaryTLSCert"
+    sid     = "NomadTLSCert"
     effect  = "Allow"
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
@@ -55,7 +55,7 @@ data "aws_iam_policy_document" "tls_cert" {
 data "aws_iam_policy_document" "tls_privkey" {
   count = var.nomad_tls_privkey_secret_arn != null ? 1 : 0
   statement {
-    sid     = "BoundaryTLSPrivKey"
+    sid     = "NomadTLSPrivKey"
     effect  = "Allow"
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
@@ -66,7 +66,7 @@ data "aws_iam_policy_document" "tls_privkey" {
 data "aws_iam_policy_document" "tls_ca" {
   count = var.nomad_tls_ca_bundle_secret_arn != null ? 1 : 0
   statement {
-    sid     = "BoundaryTLSCABundle"
+    sid     = "NomadTLSCABundle"
     effect  = "Allow"
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
