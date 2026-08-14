@@ -25,14 +25,16 @@ Terraform module aligned with HashiCorp Validated Designs (HVD) to deploy Nomad 
 
 ### TLS certificates
 
-TLS certificates for Nomad have very specific requirements for server and client nodes. [Nomad Agent Certificates](https://developer.hashicorp.com/nomad/tutorials/transport-security/security-enable-tls#agent-certificates) Let's Encrypt Certificates can not be used for Nomad due to the Nomad specific requirements. This module has the option to not enable TLS with `nomad_tls_enabled` however this should never be used outside a lab environment.
+TLS certificates for Nomad have very specific requirements for server and client nodes. Let's Encrypt Certificates can not be used for Nomad due to the Nomad specific requirements. For TLS configuration details, refer to [Nomad Agent Certificates](https://developer.hashicorp.com/nomad/docs/secure/traffic/tls#agent-certificates).
+
+>📝 Note: This module has the option to not enable TLS with `nomad_tls_enabled` however this should never be used outside a lab environment.
 
 - TLS certificate (_e.g._ `cert.pem`) and private key (_e.g._ `privkey.pem`) for the Nomad web UI, in PEM format.
   - TLS private key must **not** be password-protected.
 - TLS certificate authority (CA) bundle (_e.g._ `ca_bundle.pem`) in PEM format.
 - These TLS files will be stored as secrets in AWS Secrets Manager.
 
->📝 Store these TLS files as AWS Secrets Manager secrets to securely manage your certificates.
+>📝 Note: Store these TLS files as AWS Secrets Manager secrets to securely manage your certificates.
 
 ### Gossip encryption
 
@@ -64,16 +66,20 @@ The following secrets must be stored in **AWS Secrets Manager** to bootstrap the
         │   ├── main.tf
         │   ├── outputs.tf
         │   ├── terraform.tfvars
-        │   └── variables.tf
+        │   ├── variables.tf
+        │   └── variables_provider.tf
         └── sandbox
             ├── backend.tf
             ├── main.tf
             ├── outputs.tf
             ├── terraform.tfvars
-            └── variables.tf
+            ├── variables.tf
+            └── variables_provider.tf
     ```
 
     >📝 This example has two separate Nomad deployments: one for a `sandbox` environment and one for a `production` environment.
+
+    >📝 Note: `variables_provider.tf` defines provider configuration variables (not module variables) and must be copied from the examples directory.
 
 3. (Optional) If using S3 for remote state, configure the `backend.tf` file with custom values.
 
@@ -130,20 +136,20 @@ Please note that there is no official Service Level Agreement (SLA) for support 
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.9 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.0 |
 
 ## Providers
 
 | Name | Version |
-|------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 5.0 |
+| ---- | ------- |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.0 |
 
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [aws_autoscaling_group.nomad](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/autoscaling_group) | resource |
 | [aws_iam_instance_profile.nomad_ec2](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile) | resource |
 | [aws_iam_role.nomad_ec2](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
@@ -178,20 +184,20 @@ Please note that there is no official Service Level Agreement (SLA) for support 
 | [aws_iam_policy_document.tls_ca](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.tls_cert](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.tls_privkey](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 | [aws_route53_zone.nomad](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/route53_zone) | data source |
 | [aws_vpc.cluster](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_friendly_name_prefix"></a> [friendly\_name\_prefix](#input\_friendly\_name\_prefix) | Friendly name prefix used for uniquely naming AWS resources. | `string` | n/a | yes |
 | <a name="input_instance_subnets"></a> [instance\_subnets](#input\_instance\_subnets) | List of AWS subnet IDs for instance(s) to be deployed into. | `list(string)` | n/a | yes |
 | <a name="input_key_name"></a> [key\_name](#input\_key\_name) | SSH key name, already registered in AWS, to use for instance access | `string` | n/a | yes |
 | <a name="input_nomad_client"></a> [nomad\_client](#input\_nomad\_client) | Boolean to enable the Nomad client agent. | `bool` | n/a | yes |
 | <a name="input_nomad_datacenter"></a> [nomad\_datacenter](#input\_nomad\_datacenter) | Specifies the data center of the local agent. A datacenter is an abstract grouping of clients within a region. Clients are not required to be in the same datacenter as the servers they are joined with, but do need to be in the same region. | `string` | n/a | yes |
 | <a name="input_nomad_server"></a> [nomad\_server](#input\_nomad\_server) | Boolean to enable the Nomad server agent. | `bool` | n/a | yes |
-| <a name="input_region"></a> [region](#input\_region) | AWS region where Nomad will be deployed. | `string` | n/a | yes |
 | <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the AWS VPC resources are deployed into. | `string` | n/a | yes |
 | <a name="input_additional_package_names"></a> [additional\_package\_names](#input\_additional\_package\_names) | List of additional repository package names to install | `set(string)` | `[]` | no |
 | <a name="input_additional_security_group_ids"></a> [additional\_security\_group\_ids](#input\_additional\_security\_group\_ids) | List of AWS security group IDs to apply to all cluster nodes. | `list(string)` | `[]` | no |
@@ -243,7 +249,7 @@ Please note that there is no official Service Level Agreement (SLA) for support 
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_nomad_cli_config"></a> [nomad\_cli\_config](#output\_nomad\_cli\_config) | Environment variables to configure the nomad CLI |
 | <a name="output_nomad_url"></a> [nomad\_url](#output\_nomad\_url) | URL to access Nomad application based on value of `nomad_fqdn` input. |
 <!-- END_TF_DOCS -->
