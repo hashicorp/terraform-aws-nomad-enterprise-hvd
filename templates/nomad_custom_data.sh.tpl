@@ -271,8 +271,13 @@ function directory_create {
         log "INFO" "Creating $directory"
 
         mkdir -p $directory
+%{ if nomad_server ~}
         sudo chown $NOMAD_USER:$NOMAD_GROUP $directory
         sudo chmod 750 $directory
+%{ else ~}
+        sudo chown root:root $directory
+        sudo chmod 700 $directory
+%{ endif ~}
     done
 
     log "INFO" "Done creating necessary directories."
@@ -356,7 +361,11 @@ function configure_sysctl {
     net.bridge.bridge-nf-call-arptables = 1
     net.bridge.bridge-nf-call-ip6tables = 1
     net.bridge.bridge-nf-call-iptables = 1
+    net.ipv4.ip_local_port_range = 49152 65535
 EOF
+
+    # Apply sysctl settings immediately
+    sysctl --system
 }
 
 function generate_nomad_config {
@@ -480,8 +489,13 @@ StartLimitBurst=3
 #After=consul.service
 
 [Service]
+%{ if nomad_server ~}
 User=$NOMAD_USER
 Group=$NOMAD_GROUP
+%{ else ~}
+User=root
+Group=root
+%{ endif ~}
 ProtectSystem=full
 ProtectHome=read-only
 PrivateTmp=yes
