@@ -13,17 +13,17 @@ output "nomad_url" {
 output "nomad_cli_config" {
   description = "Environment variables to configure the nomad CLI"
   value       = <<-EOF
-    %{ if var.nomad_server ~}
-      %{ if var.create_nlb ~}
+    %{if var.nomad_server~}
+      %{if var.create_nlb~}
       export NOMAD_ADDR=https://${var.nomad_fqdn}
-      %{ else ~}
+      %{else~}
       # No load balancer created; set NOMAD_ADDR to the IPV4 address of any Nomad Server instance if this is a server deployment.
       export NOMAD_ADDR=https://<instance-ipv4>
-      %{ endif ~}
+      %{endif~}
       export NOMAD_TLS_SERVER_NAME=${var.nomad_fqdn}
-      %{ if var.nomad_tls_ca_bundle_secret_arn != null  ~}
+      %{if var.nomad_tls_ca_bundle_secret_arn != null~}
       export NOMAD_CACERT=<path/to/ca-certificate>
-      %{ endif ~}
-    %{ endif ~}
+      %{endif~}
+    %{endif~}
   EOF
 }

@@ -70,6 +70,11 @@ variable "nomad_acl_enabled" {
 variable "nomad_client" {
   type        = bool
   description = "Boolean to enable the Nomad client agent."
+
+  validation {
+    condition     = var.nomad_client != var.nomad_server
+    error_message = "Exactly one of nomad_client or nomad_server must be true. Configure either a server or a client node."
+  }
 }
 
 variable "nomad_server" {
