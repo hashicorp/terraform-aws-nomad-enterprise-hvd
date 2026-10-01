@@ -1,3 +1,15 @@
+## v0.4.0
+
+## What's Changed
+* Fix Boundary copypasta error by @ml4 in https://github.com/hashicorp/terraform-aws-nomad-enterprise-hvd/pull/23
+* feat: implement var.region automation required for AWS mods by @minsikl in https://github.com/hashicorp/terraform-aws-nomad-enterprise-hvd/pull/20
+* Fix Nomad client hardening configuration by @abuxton in https://github.com/hashicorp/terraform-aws-nomad-enterprise-hvd/pull/28
+
+## New Contributors
+* @ml4 made their first contribution in https://github.com/hashicorp/terraform-aws-nomad-enterprise-hvd/pull/23
+
+**Full Changelog**: https://github.com/hashicorp/terraform-aws-nomad-enterprise-hvd/compare/0.3.0...0.4.0
+
 ## v0.3.0
 
 ## What's Changed
